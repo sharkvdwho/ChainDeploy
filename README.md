@@ -158,4 +158,6 @@ Apache-2.0 (align with Stellar ecosystem norms unless you choose otherwise).
 
 <img width="1919" height="1038" alt="image" src="https://github.com/user-attachments/assets/12a1e18b-6e83-4577-afa9-1b2c37a44d4b" />
 
+# Screen Recording
+
 https://www.loom.com/share/19eb9c6fae354004a20eb06aab17deb0
