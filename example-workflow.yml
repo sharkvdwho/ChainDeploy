@@ -1,0 +1,58 @@
+# Example: add `.github/workflows/chaindeploy.yml` in any repository.
+# Prerequisites:
+# - ChainDeploy API reachable from GitHub-hosted runners
+# - GitHub secrets: CHAIN_DEPLOY_STELLAR_SECRET, CHAINDEPLOY_API_SECRET
+# - Server: set CI_WEBHOOK_TOKEN to the same value as CHAINDEPLOY_API_SECRET, and DASHBOARD_BASE_URL
+
+name: ChainDeploy CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  statuses: write
+  pull-requests: write
+
+jobs:
+  test-and-deploy-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies & run tests with coverage
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov
+          pytest --cov=. --cov-report=xml --cov-report=term -q || true
+        # Ensure coverage.xml exists before ChainDeploy (adjust for your layout).
+
+      - name: Run Bandit (optional)
+        continue-on-error: true
+        run: |
+          pip install bandit
+          bandit -r . -f json -o bandit-report.json || true
+
+      - name: ChainDeploy scorecard
+        uses: ./github-action
+        # When published: uses: your-org/chaindeploy-action@v1
+        with:
+          chaindeploy_api_url: ${{ secrets.CHAINDEPLOY_API_URL }}
+          deployer_stellar_address: ${{ secrets.CHAIN_DEPLOY_STELLAR_ADDRESS }}
+          deployer_stellar_secret: ${{ secrets.CHAIN_DEPLOY_STELLAR_SECRET }}
+          chaindeploy_secret: ${{ secrets.CHAINDEPLOY_API_SECRET }}
+          test_coverage_threshold: "80"
+          auto_rollback_enabled: "true"
+          performance_probe_url: ""
+          coverage_file_glob: "coverage.xml"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,122 @@
+name: chaindeploy
+
+networks:
+  chaindeploy:
+    driver: bridge
+
+volumes:
+  chaindeploy_pg_data:
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: chaindeploy-postgres
+    networks: [chaindeploy]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-chaindeploy}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chaindeploy}
+      POSTGRES_DB: ${POSTGRES_DB:-chaindeploy}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - chaindeploy_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-chaindeploy} -d ${POSTGRES_DB:-chaindeploy}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: chaindeploy-backend
+    networks: [chaindeploy]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://chaindeploy:chaindeploy@postgres:5432/chaindeploy}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://frontend:3000,http://127.0.0.1:3000}
+      STELLAR_NETWORK: ${STELLAR_NETWORK:-testnet}
+      SOROBAN_RPC_URL: ${SOROBAN_RPC_URL:-https://soroban-testnet.stellar.org}
+      HORIZON_URL: ${HORIZON_URL:-https://horizon-testnet.stellar.org}
+      STELLAR_NETWORK_PASSPHRASE: ${STELLAR_NETWORK_PASSPHRASE:-Test SDF Network ; September 2015}
+      DEPLOYMENT_DECISION_CONTRACT_ID: ${DEPLOYMENT_DECISION_CONTRACT_ID:-}
+      MULTISIG_APPROVAL_CONTRACT_ID: ${MULTISIG_APPROVAL_CONTRACT_ID:-}
+      ROLLBACK_ENGINE_CONTRACT_ID: ${ROLLBACK_ENGINE_CONTRACT_ID:-}
+      CI_WEBHOOK_TOKEN: ${CI_WEBHOOK_TOKEN:-}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      DASHBOARD_BASE_URL: ${DASHBOARD_BASE_URL:-http://localhost:3000}
+      DEPLOYMENT_BROADCAST_INTERVAL_SEC: ${DEPLOYMENT_BROADCAST_INTERVAL_SEC:-45}
+      SOROBAN_POLL_INTERVAL_SEC: ${SOROBAN_POLL_INTERVAL_SEC:-8}
+      CHAIN_DEPLOY_DEFAULT_DEPLOYER_SECRET: ${CHAIN_DEPLOY_DEFAULT_DEPLOYER_SECRET:-}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-fsS",
+          "http://127.0.0.1:8000/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:8000}
+    container_name: chaindeploy-frontend
+    networks: [chaindeploy]
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:8000}
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000',{redirect:'follow'}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  # Public HTTPS URL for GitHub → backend webhooks (requires NGROK_AUTHTOKEN).
+  ngrok:
+    image: ngrok/ngrok:latest
+    profiles: [demo-tunnel]
+    container_name: chaindeploy-ngrok
+    networks: [chaindeploy]
+    environment:
+      # Set in .env when using profile demo-tunnel (get a token at https://dashboard.ngrok.com)
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    command:
+      - http
+      - backend:8000
+      - --log=stdout
+    ports:
+      - "${NGROK_UI_PORT:-4040}:4040"
+    depends_on:
+      backend:
+        condition: service_healthy
+    # ngrok UI + API: http://host:4040 — fetch public URL from /api/tunnels (no curl/wget in image).

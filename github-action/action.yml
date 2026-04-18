@@ -1,0 +1,76 @@
+name: ChainDeploy
+description: Autonomous blockchain-powered deployment decisions on Stellar
+author: ChainDeploy
+
+branding:
+  icon: upload-cloud
+  color: blue
+
+inputs:
+  chaindeploy_api_url:
+    description: URL of the ChainDeploy backend API (no trailing slash)
+    required: true
+  deployer_stellar_address:
+    description: Stellar wallet address of the deployer (G… public key; must match deployer_stellar_secret)
+    required: true
+  deployer_stellar_secret:
+    description: Stellar secret key (S…) used to sign Soroban transactions — store in GitHub Encrypted Secrets
+    required: true
+  chaindeploy_secret:
+    description: Shared secret for API authentication (must match server CI_WEBHOOK_TOKEN / Bearer token)
+    required: true
+  test_coverage_threshold:
+    description: Minimum test coverage percentage required (maps to scorecard gate)
+    default: "80"
+  auto_rollback_enabled:
+    description: Enable automatic rollback on metric failures (passed to API metadata / future hooks)
+    default: "true"
+  performance_probe_url:
+    description: Optional URL to measure latency for performance_score (defaults to API health URL)
+    required: false
+    default: ""
+  coverage_file_glob:
+    description: Glob for coverage artifacts (e.g. coverage.xml)
+    required: false
+    default: "coverage.xml"
+
+outputs:
+  deployment_id:
+    description: Unique ChainDeploy deployment UUID
+    value: ${{ steps.run.outputs.deployment_id }}
+  decision:
+    description: APPROVED, REJECTED, or PENDING_APPROVAL
+    value: ${{ steps.run.outputs.decision }}
+  stellar_tx_hash:
+    description: Stellar transaction hash of the decision
+    value: ${{ steps.run.outputs.stellar_tx_hash }}
+  dashboard_url:
+    description: Direct link to deployment in ChainDeploy dashboard
+    value: ${{ steps.run.outputs.dashboard_url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies
+      shell: bash
+      run: pip install --disable-pip-version-check -q -r "${{ github.action_path }}/requirements.txt"
+
+    - name: Run ChainDeploy
+      id: run
+      shell: bash
+      env:
+        INPUT_CHAINDEPLOY_API_URL: ${{ inputs.chaindeploy_api_url }}
+        INPUT_DEPLOYER_STELLAR_ADDRESS: ${{ inputs.deployer_stellar_address }}
+        INPUT_DEPLOYER_STELLAR_SECRET: ${{ inputs.deployer_stellar_secret }}
+        INPUT_CHAINDEPLOY_SECRET: ${{ inputs.chaindeploy_secret }}
+        INPUT_TEST_COVERAGE_THRESHOLD: ${{ inputs.test_coverage_threshold }}
+        INPUT_AUTO_ROLLBACK_ENABLED: ${{ inputs.auto_rollback_enabled }}
+        INPUT_PERFORMANCE_PROBE_URL: ${{ inputs.performance_probe_url }}
+        INPUT_COVERAGE_FILE_GLOB: ${{ inputs.coverage_file_glob }}
+        GITHUB_TOKEN: ${{ github.token }}
+      run: python "${{ github.action_path }}/main.py"

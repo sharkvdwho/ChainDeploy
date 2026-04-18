@@ -1,0 +1,16 @@
+[package]
+name = "multisig_approval"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "ChainDeploy — multi-signature approval for risky deployments."
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }

@@ -1,0 +1,20 @@
+[workspace]
+members = ["deployment_decision", "multisig_approval", "rollback_engine"]
+resolver = "2"
+
+[workspace.dependencies]
+soroban-sdk = "22.0.7"
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+debug-assertions = false
+lto = true
+panic = "abort"
+codegen-units = 1
+strip = "symbols"
+
+[profile.release-with-logs]
+inherits = "release"
+debug-assertions = true
