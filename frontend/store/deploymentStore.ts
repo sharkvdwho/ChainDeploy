@@ -6,6 +6,7 @@ import {
   fetchDeploymentDetail,
   type DeploymentHistoryItem,
 } from "@/lib/api";
+import { WALLET_TARGET_NETWORK } from "@/lib/config";
 import type { StellarNetworkId } from "@/lib/stellar";
 
 export type { StellarNetworkId };
@@ -141,6 +142,30 @@ export const useDeploymentStore = create<DeploymentState>()(
         stellarNetwork: s.stellarNetwork,
         isConnected: Boolean(s.walletAddress),
       }),
+      onRehydrateStorage: () => (persisted) => {
+        if (!persisted || typeof persisted !== "object") return;
+        const p = persisted as {
+          stellarNetwork?: StellarNetworkId;
+          walletAddress?: string | null;
+        };
+        if (p.stellarNetwork === WALLET_TARGET_NETWORK) return;
+        const hadWallet = Boolean(p.walletAddress);
+        queueMicrotask(() => {
+          useDeploymentStore.setState({
+            stellarNetwork: WALLET_TARGET_NETWORK,
+            walletAddress: null,
+            isConnected: false,
+            xlmBalance: null,
+          });
+          if (hadWallet) {
+            useDeploymentStore.getState().pushToast({
+              variant: "info",
+              title: "Wallet session reset",
+              message: `This app targets ${WALLET_TARGET_NETWORK}. Switch Freighter to that network, then connect again.`,
+            });
+          }
+        });
+      },
     },
   ),
 );

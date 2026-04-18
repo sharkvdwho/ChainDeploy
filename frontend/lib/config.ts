@@ -1,7 +1,16 @@
+import type { StellarNetworkId } from "@/lib/stellar";
+
 function normalizeWsBase(httpBase: string): string {
   const u = new URL(httpBase);
   u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
   return u.origin;
+}
+
+/** Network the app expects for Freighter / signing (default: testnet). */
+function parseWalletTargetNetwork(): StellarNetworkId {
+  const raw = process.env.NEXT_PUBLIC_WALLET_NETWORK?.trim().toLowerCase();
+  if (raw === "mainnet" || raw === "futurenet" || raw === "testnet") return raw;
+  return "testnet";
 }
 
 const apiUrl =
@@ -22,3 +31,5 @@ export const DEPLOYMENT_DECISION_CONTRACT_ID =
 
 export const SOROBAN_RPC_URL =
   process.env.NEXT_PUBLIC_SOROBAN_RPC_URL?.replace(/\/$/, "") ?? "";
+
+export const WALLET_TARGET_NETWORK = parseWalletTargetNetwork();

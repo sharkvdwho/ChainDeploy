@@ -17,6 +17,7 @@ import {
   detectFreighterInstalled,
   FREIGHTER_INSTALL_URL,
 } from "@/lib/freighter-detect";
+import { WALLET_TARGET_NETWORK } from "@/lib/config";
 
 export default function ConnectPage() {
   const walletAddress = useDeploymentStore((s) => s.walletAddress);
@@ -80,6 +81,14 @@ export default function ConnectPage() {
       const { address } = await freighterConnect();
       const { passphrase } = await freighterNetwork();
       const net = mapPassphraseToNetworkId(passphrase);
+      if (net !== WALLET_TARGET_NETWORK) {
+        pushToast({
+          variant: "error",
+          title: "Wrong Freighter network",
+          message: `Switch Freighter to ${WALLET_TARGET_NETWORK} (extension menu → network), then try Connect again.`,
+        });
+        return;
+      }
       connectWallet(address, net);
       pushToast({ variant: "success", title: "Wallet connected", message: address });
     } catch (e) {
@@ -94,7 +103,7 @@ export default function ConnectPage() {
   }
 
   function onDisconnect() {
-    connectWallet(null, stellarNetwork);
+    connectWallet(null, WALLET_TARGET_NETWORK);
     setRegTx(null);
     pushToast({ variant: "info", title: "Wallet cleared" });
   }
